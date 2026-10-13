@@ -1,0 +1,558 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoRide - Book Your Ride</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #17251b;
+  background: #f4f7f1;
+}
+
+header {
+  background: #14251a;
+  color: white;
+  padding: 20px 7%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  color: #c9f27a;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+header a {
+  color: white;
+  text-decoration: none;
+  margin-left: 18px;
+}
+
+.hero {
+  padding: 45px 7% 25px;
+}
+
+.hero h1 {
+  font-size: clamp(36px, 5vw, 55px);
+  margin-bottom: 10px;
+}
+
+.hero h1 span { color: #659a35; }
+
+.hero p { color: #69766c; line-height: 1.6; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 350px minmax(0, 1fr);
+  gap: 22px;
+  padding: 10px 7% 50px;
+  align-items: start;
+}
+
+.panel, .map-panel {
+  background: white;
+  border-radius: 18px;
+  padding: 23px;
+  box-shadow: 0 8px 30px #0000000b;
+}
+
+.panel h2 { margin-top: 0; }
+
+label {
+  display: block;
+  margin-top: 17px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+input, select {
+  width: 100%;
+  padding: 13px;
+  margin-top: 8px;
+  border: 1px solid #dce4d9;
+  border-radius: 9px;
+  background: white;
+  font-size: 14px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.primary {
+  width: 100%;
+  margin-top: 20px;
+  background: #c9f27a;
+  color: #17251b;
+}
+
+.primary:hover { background: #b7e45e; }
+
+.secondary {
+  background: #edf3e8;
+  color: #17251b;
+  margin-top: 10px;
+  width: 100%;
+}
+
+#map {
+  width: 100%;
+  height: 480px;
+  border-radius: 13px;
+  z-index: 1;
+}
+
+.map-panel h2 { margin-top: 0; }
+
+#status {
+  font-size: 13px;
+  color: #52664d;
+  line-height: 1.6;
+  white-space: pre-line;
+  margin-top: 15px;
+}
+
+#result {
+  display: none;
+  margin-top: 18px;
+  background: #edf5e5;
+  border-radius: 12px;
+  padding: 16px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+#result strong {
+  font-size: 25px;
+}
+
+.hint {
+  color: #7a867c;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 14px;
+}
+
+footer {
+  background: #14251a;
+  color: white;
+  text-align: center;
+  padding: 25px;
+}
+
+@media(max-width: 850px) {
+  .layout { grid-template-columns: 1fr; padding: 10px 5% 35px; }
+  .hero { padding: 35px 5% 20px; }
+  #map { height: 380px; }
+}
+
+@media(max-width: 480px) {
+  header { padding: 18px 5%; }
+  header a { margin-left: 8px; font-size: 12px; }
+  .logo { font-size: 23px; }
+  .panel, .map-panel { padding: 16px; }
+  #map { height: 330px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">GoRide.</div>
+  <nav>
+    <a href="#booking">Book</a>
+    <a href="#map-section">Map</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>Your journey.<br><span>Your way.</span></h1>
+  <p>Enter your locations, see the driving route, and estimate your fare.</p>
+</section>
+
+<main class="layout">
+
+  <section class="panel" id="booking">
+    <h2>Book your ride</h2>
+    <p>Where should we pick you up?</p>
+
+    <form id="rideForm">
+      <label for="pickup">Pickup address</label>
+      <input id="pickup"
+        placeholder="e.g. Railway Station, Delhi"
+        autocomplete="street-address" required>
+
+      <label for="drop">Destination</label>
+      <input id="drop"
+        placeholder="e.g. India Gate, New Delhi"
+        autocomplete="street-address" required>
+
+      <label for="vehicle">Choose vehicle</label>
+      <select id="vehicle">
+        <option value="Mini">Go Mini</option>
+        <option value="Comfort">Go Comfort</option>
+        <option value="XL">Go XL</option>
+      </select>
+
+      <button class="primary" id="routeButton" type="submit">
+        Find route & fare →
+      </button>
+    </form>
+
+    <button class="secondary" id="locateButton" type="button">
+      Use my current location
+    </button>
+
+    <div id="status" role="status" aria-live="polite">
+      Enter two addresses to calculate a route.
+    </div>
+
+    <div id="result" aria-live="polite"></div>
+
+    <p class="hint">
+      Route and fare are estimates. No driver is booked by this demo.
+    </p>
+  </section>
+
+  <section class="map-panel" id="map-section">
+    <h2>Your route on the map</h2>
+    <div id="map"></div>
+    <p class="hint">
+      Map data © OpenStreetMap contributors.
+      Routes are provided by the routing service.
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <h3>GoRide.</h3>
+  <p>Better journeys start here.</p>
+  <p>© 2026 GoRide</p>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* =========================================
+   EDIT YOUR BUSINESS PRICES HERE
+========================================= */
+
+const CONFIG = {
+  currency: "₹",
+  baseFare: 40,
+
+  pricePerKm: {
+    Mini: 12,
+    Comfort: 17,
+    XL: 23
+  },
+
+  minimumFare: {
+    Mini: 70,
+    Comfort: 100,
+    XL: 150
+  }
+};
+
+/* =========================================
+   MAP SETUP
+========================================= */
+
+const map = L.map("map").setView([22.9734, 78.6569], 5);
+
+L.tileLayer(
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  }
+).addTo(map);
+
+let pickupMarker = null;
+let dropMarker = null;
+let routeLine = null;
+
+const form = document.getElementById("rideForm");
+const statusBox = document.getElementById("status");
+const resultBox = document.getElementById("result");
+const routeButton = document.getElementById("routeButton");
+
+function showStatus(message) {
+  statusBox.textContent = message;
+}
+
+function clearRoute() {
+  if (pickupMarker) map.removeLayer(pickupMarker);
+  if (dropMarker) map.removeLayer(dropMarker);
+  if (routeLine) map.removeLayer(routeLine);
+
+  pickupMarker = null;
+  dropMarker = null;
+  routeLine = null;
+
+  resultBox.style.display = "none";
+}
+
+/* =========================================
+   ADDRESS -> REAL COORDINATES
+   Nominatim / OpenStreetMap
+========================================= */
+
+async function findAddress(address) {
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="
+    + encodeURIComponent(address);
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      "Address search is temporarily unavailable. Try again later."
+    );
+  }
+
+  const places = await response.json();
+
+  if (!places.length) {
+    throw new Error(
+      'Could not find "' + address +
+      '". Try adding the city or state.'
+    );
+  }
+
+  return {
+    lat: Number(places[0].lat),
+    lon: Number(places[0].lon),
+    name: places[0].display_name
+  };
+}
+
+/* =========================================
+   REAL ROAD ROUTE + DISTANCE + ETA
+   OSRM routing demo service
+========================================= */
+
+async function findRoadRoute(start, end) {
+  const url =
+    "https://router.project-osrm.org/route/v1/driving/" +
+    start.lon + "," + start.lat + ";" +
+    end.lon + "," + end.lat +
+    "?overview=full&geometries=geojson&steps=false";
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      "The routing service is unavailable. Please try again."
+    );
+  }
+
+  const data = await response.json();
+
+  if (data.code !== "Ok" || !data.routes.length) {
+    throw new Error(
+      "No driving route was found between these locations."
+    );
+  }
+
+  return data.routes[0];
+}
+
+/* =========================================
+   DISPLAY ROUTE AND CALCULATE FARE
+========================================= */
+
+form.addEventListener("submit", async function(event) {
+  event.preventDefault();
+
+  const pickupText = document.getElementById("pickup").value.trim();
+  const dropText = document.getElementById("drop").value.trim();
+  const vehicle = document.getElementById("vehicle").value;
+
+  if (!pickupText || !dropText) return;
+
+  if (pickupText.toLowerCase() === dropText.toLowerCase()) {
+    showStatus("Please enter two different locations.");
+    return;
+  }
+
+  routeButton.disabled = true;
+  routeButton.textContent = "Finding your route...";
+  showStatus("Searching for addresses and calculating the driving route...");
+  clearRoute();
+
+  try {
+    // Respect public geocoding service limits:
+    // search the addresses one after another.
+    const start = await findAddress(pickupText);
+
+    await new Promise(resolve => setTimeout(resolve, 1100));
+
+    const end = await findAddress(dropText);
+
+    showStatus("Address found. Calculating road distance...");
+
+    const route = await findRoadRoute(start, end);
+
+    const distanceKm = route.distance / 1000;
+    const durationMin = Math.round(route.duration / 60);
+
+    const fare = Math.max(
+      CONFIG.minimumFare[vehicle],
+      CONFIG.baseFare +
+        CONFIG.pricePerKm[vehicle] * distanceKm
+    );
+
+    // GeoJSON route coordinates are [longitude, latitude].
+    routeLine = L.geoJSON(route.geometry, {
+      style: {
+        color: "#4e8d2b",
+        weight: 6,
+        opacity: 0.85
+      }
+    }).addTo(map);
+
+    pickupMarker = L.marker([start.lat, start.lon])
+      .addTo(map)
+      .bindPopup("Pickup: " + escapeHtml(pickupText));
+
+    dropMarker = L.marker([end.lat, end.lon])
+      .addTo(map)
+      .bindPopup("Destination: " + escapeHtml(dropText));
+
+    map.fitBounds(routeLine.getBounds(), {
+      padding: [35, 35],
+      maxZoom: 15
+    });
+
+    resultBox.style.display = "block";
+    resultBox.replaceChildren();
+
+    const price = document.createElement("strong");
+    price.textContent =
+      CONFIG.currency + Math.round(fare).toLocaleString("en-IN");
+
+    const distance = document.createElement("p");
+    distance.textContent = "Road distance: " + distanceKm.toFixed(2) + " km";
+
+    const time = document.createElement("p");
+    time.textContent = "Estimated driving time: " + formatDuration(durationMin);
+
+    const ride = document.createElement("p");
+    ride.textContent = "Vehicle: " + vehicle;
+
+    const routeDescription = document.createElement("p");
+    routeDescription.textContent =
+      "From: " + pickupText + " | To: " + dropText;
+
+    const disclaimer = document.createElement("small");
+    disclaimer.textContent =
+      "Estimated fare only. Traffic, waiting, tolls, taxes and other fees may change the final price.";
+
+    resultBox.append(
+      price, distance, time, ride, routeDescription, disclaimer
+    );
+
+    showStatus("Route calculated successfully.");
+
+  } catch (error) {
+    showStatus(error.message);
+  } finally {
+    routeButton.disabled = false;
+    routeButton.textContent = "Find route & fare →";
+  }
+});
+
+function formatDuration(minutes) {
+  if (minutes < 60) return minutes + " minutes";
+
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+
+  return hours + " hr " + remaining + " min";
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, function(char) {
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[char];
+  });
+}
+
+/* =========================================
+   OPTIONAL CURRENT LOCATION
+========================================= */
+
+document.getElementById("locateButton")
+  .addEventListener("click", function() {
+
+    if (!navigator.geolocation) {
+      showStatus("Your browser does not support location access.");
+      return;
+    }
+
+    showStatus(
+      "Requesting your location. Please allow location access."
+    );
+
+    navigator.geolocation.getCurrentPosition(
+      async function(position) {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        map.setView([lat, lon], 15);
+
+        if (pickupMarker) map.removeLayer(pickupMarker);
+
+        pickupMarker = L.marker([lat, lon])
+          .addTo(map)
+          .bindPopup("Your current location")
+          .openPopup();
+
+        document.getElementById("pickup").value =
+          lat.toFixed(6) + ", " + lon.toFixed(6);
+
+        showStatus(
+          "Current location added as pickup. Enter a destination and find your route."
+        );
+      },
+      function(error) {
+        showStatus(
+          "Location access failed. Allow location permission or enter your pickup address manually."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000
+      }
+    );
+  });
+</script>
+
+</body>
+</html>
